@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:\\\\Users\\\\pc\\\\OneDrive - fmp.com.do\\\\Escritorio\\\\Proyecto Social Listening \\(MVP Alfredo Torres\\)\")",
+      "Bash(python3 -c \":*)",
+      "Bash(py --version)",
+      "Bash(BASE=\"C:\\\\Users\\\\pc\\\\OneDrive - fmp.com.do\\\\Escritorio\\\\Proyecto Social Listening \\(MVP Alfredo Torres\\)\\\\social-intelligence-hub\")",
+      "Bash(mkdir -p \"$BASE/frontend/app/api/mentions\")",
+      "Bash(mkdir -p \"$BASE/frontend/app/api/search\")",
+      "Bash(mkdir -p \"$BASE/frontend/app/api/stats\")",
+      "Bash(mkdir -p \"$BASE/frontend/app/api/entities\")",
+      "Bash(mkdir -p \"$BASE/frontend/components/ui\")",
+      "Bash(mkdir -p \"$BASE/frontend/lib\")",
+      "Bash(mkdir -p \"$BASE/frontend/public\")",
+      "Bash(mkdir -p \"$BASE/scraper/collectors\")",
+      "Bash(mkdir -p \"$BASE/scraper/processors\")",
+      "Bash(mkdir -p \"$BASE/supabase/migrations\")",
+      "Bash(mkdir -p \"$BASE/.github/workflows\")",
+      "Bash(find \"C:\\\\Users\\\\pc\\\\OneDrive - fmp.com.do\\\\Escritorio\\\\Proyecto Social Listening \\(MVP Alfredo Torres\\)\\\\social-intelligence-hub\" -type f)",
+      "Bash(find \"C:\\\\Users\\\\pc\\\\OneDrive - fmp.com.do\\\\Escritorio\\\\Proyecto Social Listening \\(MVP Alfredo Torres\\)\\\\social-intelligence-hub\\\\frontend\" -name \"*.tsx\" -o -name \"*.ts\")",
+      "Bash(cat 'C:\\\\Users\\\\pc\\\\OneDrive - fmp.com.do\\\\Escritorio\\\\Proyecto Social Listening \\(MVP Alfredo Torres\\)\\\\social-intelligence-hub\\\\scraper\\\\.env')",
+      "Bash(python -c \":*)",
+      "Bash(python main.py)",
+      "Bash(pip install:*)"
+    ]
+  }
+}

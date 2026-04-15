@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+scraper/.env
+scraper/scraper.log
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+
+# Playwright
+playwright/.auth/
+test-results/
+playwright-report/
