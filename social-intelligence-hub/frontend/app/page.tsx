@@ -344,10 +344,10 @@ export default function DashboardPage() {
 
       {/* ────── HEADER ────── */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between sm:gap-4 gap-3">
 
           {/* Brand */}
-          <div className="flex items-center gap-2.5 flex-shrink-0">
+          <div className="flex items-center gap-2.5 flex-shrink-0 order-1">
             <div className="p-1.5 rounded-lg bg-czfs-blue">
               <BarChart2 className="h-5 w-5 text-white" />
             </div>
@@ -362,7 +362,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Search */}
-          <div className="flex-1 max-w-xl">
+          <div className="flex-1 min-w-[280px] w-full sm:max-w-xl order-3 sm:order-2 header-search">
             <SearchBar
               onSearch={handleSearch}
               loading={state.loadingMentions || state.searchingLive}
@@ -371,7 +371,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Acciones */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 order-2 sm:order-3">
             {state.lastUpdated && (
               <span className="text-xs text-muted-foreground hidden md:block">
                 Act. {formatShortDate(state.lastUpdated.toISOString())}
@@ -617,7 +617,7 @@ export default function DashboardPage() {
 
           {/* Grid de menciones */}
           {state.loadingMentions ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-7xl mx-auto">
               {Array.from({ length: 6 }).map((_, i) => <MentionCardSkeleton key={i} />)}
             </div>
           ) : state.mentions.length === 0 && !state.errorMentions ? (
@@ -635,7 +635,7 @@ export default function DashboardPage() {
               )}
             </div>
           ) : !state.errorMentions ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-7xl mx-auto">
               {state.mentions.map((mention) => (
                 <MentionCard key={mention.id} mention={mention} />
               ))}

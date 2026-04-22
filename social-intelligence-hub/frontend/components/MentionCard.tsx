@@ -145,7 +145,7 @@ export function MentionCard({ mention, className, compact = false }: MentionCard
       <div className={cn("px-4 pb-3 flex-1", compact && "px-3 pb-3")}>
         <p
           className={cn(
-            "text-sm text-foreground leading-relaxed",
+            "text-sm text-foreground leading-relaxed line-clamp-6",
             compact && "line-clamp-4"
           )}
         >
