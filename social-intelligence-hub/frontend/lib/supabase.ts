@@ -6,6 +6,19 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ============================================================
+// Connection test helper (used by health indicator in footer)
+// ============================================================
+export async function testConnection(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from("entities").select("id").limit(1);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "Error desconocido" };
+  }
+}
+
+// ============================================================
 // Types
 // ============================================================
 
@@ -85,7 +98,10 @@ export async function fetchSentimentSummary(): Promise<SentimentSummary[]> {
     .select("*")
     .order("total_mentions", { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    console.error("fetchSentimentSummary error:", error.message);
+    throw new Error(`Error en v_sentiment_summary: ${error.message}`);
+  }
   return data || [];
 }
 
@@ -110,7 +126,10 @@ export async function fetchDailyTrend(
   }
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    console.error("fetchDailyTrend error:", error.message);
+    throw new Error(`Error en v_daily_trend: ${error.message}`);
+  }
   return data || [];
 }
 
@@ -173,7 +192,7 @@ export async function fetchMentions(params: {
     }
   }
 
-  // Filtro por texto (bilingüe: busca en cualquier idioma)
+  // Filtro por texto
   if (searchQuery) {
     query = query.ilike("text_original", `%${searchQuery}%`);
   }
@@ -187,7 +206,10 @@ export async function fetchMentions(params: {
   }
 
   const { data, error, count } = await query;
-  if (error) throw error;
+  if (error) {
+    console.error("fetchMentions error:", error.message);
+    throw new Error(`Error en mentions: ${error.message}`);
+  }
   return { data: (data as Mention[]) || [], count: count || 0 };
 }
 
@@ -198,17 +220,24 @@ export async function fetchEntities(): Promise<Entity[]> {
     .eq("active", true)
     .order("name");
 
-  if (error) throw error;
+  if (error) {
+    console.error("fetchEntities error:", error.message);
+    throw new Error(`Error en entities: ${error.message}`);
+  }
   return data || [];
 }
 
 export async function fetchSources(): Promise<Source[]> {
+  // La tabla sources tiene columna 'active' — la filtramos
   const { data, error } = await supabase
     .from("sources")
-    .select("*")
+    .select("id, slug, name, icon_url")
     .eq("active", true);
 
-  if (error) throw error;
+  if (error) {
+    console.error("fetchSources error:", error.message);
+    throw new Error(`Error en sources: ${error.message}`);
+  }
   return data || [];
 }
 
@@ -231,13 +260,16 @@ export async function fetchTotalStats(
   if (dateTo)   query = query.lte("published_at", dateTo);
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    console.error("fetchTotalStats error:", error.message);
+    throw new Error(`Error en stats: ${error.message}`);
+  }
 
-  const mentions = data || [];
-  const total    = mentions.length;
-  const positive = mentions.filter((m) => m.sentiment_label === "positive").length;
-  const negative = mentions.filter((m) => m.sentiment_label === "negative").length;
-  const neutral  = mentions.filter((m) => m.sentiment_label === "neutral").length;
+  const mentions  = data || [];
+  const total     = mentions.length;
+  const positive  = mentions.filter((m) => m.sentiment_label === "positive").length;
+  const negative  = mentions.filter((m) => m.sentiment_label === "negative").length;
+  const neutral   = mentions.filter((m) => m.sentiment_label === "neutral").length;
   const overrides = mentions.filter((m) => m.dominican_override).length;
 
   return {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   BarChart2, Bell, RefreshCw, Globe,
   ThumbsUp, ThumbsDown, Minus, AlertTriangle, Filter,
+  Wifi, WifiOff, Zap,
 } from "lucide-react";
 import { KpiCard, NetSentimentCard } from "@/components/KpiCard";
 import { TrendChart, SentimentDonut, EntitiesComparisonChart } from "@/components/SentimentChart";
@@ -20,6 +21,7 @@ import {
   fetchDailyTrend,
   fetchMentions,
   fetchTotalStats,
+  testConnection,
   type SentimentSummary,
   type DailyTrend,
   type Mention,
@@ -38,21 +40,26 @@ interface DashboardState {
     netSentiment: number;
     localTermOverrides: number;
   } | null;
-  summaries:      SentimentSummary[];
-  trends:         DailyTrend[];
-  mentions:       Mention[];
-  mentionsCount:  number;
+  summaries:         SentimentSummary[];
+  trends:            DailyTrend[];
+  mentions:          Mention[];
+  mentionsCount:     number;
   selectedEntity:    string;
   selectedSentiment: string;
   selectedSource:    string;
-  searchQuery:    string;
-  capexType:      CapexInterpretation;
-  dateRange:      DateRange;
-  page:           number;
-  loadingStats:   boolean;
-  loadingCharts:  boolean;
-  loadingMentions: boolean;
-  lastUpdated:    Date | null;
+  searchQuery:       string;
+  capexType:         CapexInterpretation;
+  dateRange:         DateRange;
+  page:              number;
+  loadingStats:      boolean;
+  loadingCharts:     boolean;
+  loadingMentions:   boolean;
+  searchingLive:     boolean;
+  lastUpdated:       Date | null;
+  dbConnected:       boolean | null;   // null = checking, true/false = result
+  errorStats:        string | null;
+  errorMentions:     string | null;
+  liveSearchMsg:     string | null;
 }
 
 const INITIAL_STATE: DashboardState = {
@@ -66,12 +73,17 @@ const INITIAL_STATE: DashboardState = {
   selectedSource:    "all",
   searchQuery:       "",
   capexType:         null,
-  dateRange:         { preset: "30d" },
+  dateRange:         { preset: "all" },
   page:              0,
   loadingStats:      true,
   loadingCharts:     true,
   loadingMentions:   true,
+  searchingLive:     false,
   lastUpdated:       null,
+  dbConnected:       null,
+  errorStats:        null,
+  errorMentions:     null,
+  liveSearchMsg:     null,
 };
 
 const MENTIONS_PER_PAGE = 12;
@@ -80,8 +92,8 @@ const MENTIONS_PER_PAGE = 12;
 // Component
 // ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const [state, setState]   = useState<DashboardState>(INITIAL_STATE);
-  const feedRef             = useRef<HTMLDivElement>(null);
+  const [state, setState] = useState<DashboardState>(INITIAL_STATE);
+  const feedRef           = useRef<HTMLDivElement>(null);
 
   const updateState = useCallback((updates: Partial<DashboardState>) => {
     setState((prev) => ({ ...prev, ...updates }));
@@ -90,18 +102,30 @@ export default function DashboardPage() {
   // Rango de fechas resuelto
   const resolvedDates = resolveDateRange(state.dateRange);
 
+  // ── Test de conexión a Supabase ─────────────────────────────
+  useEffect(() => {
+    testConnection().then(({ ok, error }) => {
+      updateState({ dbConnected: ok });
+      if (!ok) {
+        console.warn("Supabase connection failed:", error);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Carga de stats + resúmenes ──────────────────────────────
   const loadStats = useCallback(async (dateFrom?: string, dateTo?: string) => {
     try {
-      updateState({ loadingStats: true });
+      updateState({ loadingStats: true, errorStats: null });
       const [stats, summaries] = await Promise.all([
         fetchTotalStats(dateFrom, dateTo),
         fetchSentimentSummary(),
       ]);
       updateState({ stats, summaries, loadingStats: false });
-    } catch (err) {
-      console.error("Error cargando stats:", err);
-      updateState({ loadingStats: false });
+    } catch (err: any) {
+      const msg = err?.message ?? "Error desconocido al cargar estadísticas";
+      console.error("Error cargando stats:", msg);
+      updateState({ loadingStats: false, errorStats: msg });
     }
   }, [updateState]);
 
@@ -115,9 +139,36 @@ export default function DashboardPage() {
         dateTo,
       );
       updateState({ trends, loadingCharts: false });
-    } catch (err) {
-      console.error("Error cargando trends:", err);
+    } catch (err: any) {
+      console.error("Error cargando trends:", err?.message);
       updateState({ loadingCharts: false });
+    }
+  }, [updateState]);
+
+  // ── Búsqueda en vivo (llamada al API route) ─────────────────
+  const triggerLiveSearch = useCallback(async (query: string) => {
+    if (!query || query.trim().length < 2) return;
+    try {
+      updateState({ searchingLive: true, liveSearchMsg: null });
+      const res = await fetch("/api/search-live", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const json = await res.json();
+      if (json.newMentions > 0) {
+        updateState({
+          liveSearchMsg: `✓ ${json.newMentions} resultado(s) nuevo(s) encontrado(s) en vivo`,
+          searchingLive: false,
+        });
+      } else {
+        updateState({
+          liveSearchMsg: json.message ?? "Sin resultados nuevos en Reddit / Noticias",
+          searchingLive: false,
+        });
+      }
+    } catch {
+      updateState({ searchingLive: false, liveSearchMsg: null });
     }
   }, [updateState]);
 
@@ -125,6 +176,7 @@ export default function DashboardPage() {
   const loadMentions = useCallback(async (params: {
     entitySlug?: string;
     sentiment?: string;
+    sourceSlug?: string;
     searchQuery?: string;
     capexType?: CapexInterpretation;
     dateFrom?: string;
@@ -132,8 +184,8 @@ export default function DashboardPage() {
     page?: number;
   }) => {
     try {
-      updateState({ loadingMentions: true });
-      const { entitySlug, sentiment, searchQuery, capexType, dateFrom, dateTo, page = 0 } = params;
+      updateState({ loadingMentions: true, errorMentions: null });
+      const { entitySlug, sentiment, sourceSlug, searchQuery, capexType, dateFrom, dateTo, page = 0 } = params;
 
       let effectiveEntity = entitySlug;
       let effectiveQuery  = searchQuery;
@@ -147,8 +199,9 @@ export default function DashboardPage() {
       }
 
       const { data, count } = await fetchMentions({
-        entitySlug: effectiveEntity === "all" ? undefined : effectiveEntity,
-        sentiment:  sentiment === "all" ? undefined : (sentiment as SentimentLabel),
+        entitySlug:  effectiveEntity === "all" ? undefined : effectiveEntity,
+        sentiment:   sentiment === "all" ? undefined : (sentiment as SentimentLabel),
+        sourceSlug:  sourceSlug === "all" ? undefined : sourceSlug,
         searchQuery: effectiveQuery,
         dateFrom,
         dateTo,
@@ -157,14 +210,15 @@ export default function DashboardPage() {
       });
 
       updateState({
-        mentions:      data,
-        mentionsCount: count,
+        mentions:        data,
+        mentionsCount:   count,
         loadingMentions: false,
-        lastUpdated: new Date(),
+        lastUpdated:     new Date(),
       });
-    } catch (err) {
-      console.error("Error cargando menciones:", err);
-      updateState({ loadingMentions: false });
+    } catch (err: any) {
+      const msg = err?.message ?? "Error desconocido al cargar menciones";
+      console.error("Error cargando menciones:", msg);
+      updateState({ loadingMentions: false, errorMentions: msg });
     }
   }, [updateState]);
 
@@ -183,6 +237,7 @@ export default function DashboardPage() {
     loadMentions({
       entitySlug:  state.selectedEntity,
       sentiment:   state.selectedSentiment,
+      sourceSlug:  state.selectedSource,
       searchQuery: state.searchQuery,
       capexType:   state.capexType,
       dateFrom: from,
@@ -209,8 +264,12 @@ export default function DashboardPage() {
 
   // ── Handlers ────────────────────────────────────────────────
   const handleSearch = useCallback((query: string, capexType?: CapexInterpretation) => {
-    updateState({ searchQuery: query, capexType: capexType ?? null, page: 0 });
-  }, [updateState]);
+    updateState({ searchQuery: query, capexType: capexType ?? null, page: 0, liveSearchMsg: null });
+    // Disparar búsqueda en vivo para enriquecer la DB con resultados en tiempo real
+    if (query && query.trim().length >= 2) {
+      triggerLiveSearch(query);
+    }
+  }, [updateState, triggerLiveSearch]);
 
   const handleEntityChange = useCallback((entity: string) => {
     updateState({ selectedEntity: entity, page: 0 });
@@ -233,11 +292,13 @@ export default function DashboardPage() {
 
   const handleRefresh = useCallback(() => {
     const { from, to } = resolvedDates;
+    updateState({ liveSearchMsg: null });
     loadStats(from, to);
     loadCharts(state.selectedEntity, from, to);
     loadMentions({
       entitySlug:  state.selectedEntity,
       sentiment:   state.selectedSentiment,
+      sourceSlug:  state.selectedSource,
       searchQuery: state.searchQuery,
       capexType:   state.capexType,
       dateFrom: from,
@@ -271,10 +332,10 @@ export default function DashboardPage() {
     { value: "mixed",    label: "Mixtos"    },
   ];
 
-  const totalPages   = Math.ceil(state.mentionsCount / MENTIONS_PER_PAGE);
-  const positivePct  = state.stats && state.stats.totalMentions > 0
+  const totalPages  = Math.ceil(state.mentionsCount / MENTIONS_PER_PAGE);
+  const positivePct = state.stats && state.stats.totalMentions > 0
     ? Math.round((state.stats.positiveCount / state.stats.totalMentions) * 100) : 0;
-  const negativePct  = state.stats && state.stats.totalMentions > 0
+  const negativePct = state.stats && state.stats.totalMentions > 0
     ? Math.round((state.stats.negativeCount / state.stats.totalMentions) * 100) : 0;
 
   // ── Render ──────────────────────────────────────────────────
@@ -304,7 +365,7 @@ export default function DashboardPage() {
           <div className="flex-1 max-w-xl">
             <SearchBar
               onSearch={handleSearch}
-              loading={state.loadingMentions}
+              loading={state.loadingMentions || state.searchingLive}
               initialValue={state.searchQuery}
             />
           </div>
@@ -313,7 +374,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 flex-shrink-0">
             {state.lastUpdated && (
               <span className="text-xs text-muted-foreground hidden md:block">
-                Actualizado {formatShortDate(state.lastUpdated.toISOString())}
+                Act. {formatShortDate(state.lastUpdated.toISOString())}
               </span>
             )}
             <button
@@ -333,9 +394,31 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* ────── BANNER ESTADO DB ────── */}
+      {state.dbConnected === false && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2.5">
+          <div className="max-w-7xl mx-auto flex items-center gap-2 text-sm text-red-700">
+            <WifiOff className="h-4 w-4 flex-shrink-0" />
+            <strong>Sin conexión a Supabase.</strong>
+            <span>Verifica tu <code className="bg-red-100 px-1 rounded">.env.local</code> y que el SQL de migración haya sido ejecutado.</span>
+          </div>
+        </div>
+      )}
+
+      {/* ────── BANNER ERROR STATS ────── */}
+      {state.errorStats && state.dbConnected !== false && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5">
+          <div className="max-w-7xl mx-auto flex items-center gap-2 text-sm text-amber-700">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            <span>Las tablas o vistas aún no existen en Supabase. Ejecuta el SQL de migración primero.</span>
+            <span className="text-xs ml-2 text-amber-500">{state.errorStats}</span>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-7">
 
-        {/* ────── FILTRO DE PERÍODO (visible en toda la página) ────── */}
+        {/* ────── FILTRO DE PERÍODO ────── */}
         <section className="bg-card border rounded-xl px-5 py-3.5 shadow-sm">
           <DateRangeFilter
             value={state.dateRange}
@@ -343,7 +426,7 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* ────── CAPA ESTRATÉGICA: KPIs ────── */}
+        {/* ────── KPIs ────── */}
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -413,7 +496,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ────── CAPA TÁCTICA: Gráficos ────── */}
+        {/* ────── GRÁFICOS ────── */}
         <section>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -462,7 +545,7 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* ────── CAPA OPERATIVA: Feed ────── */}
+        {/* ────── FEED ────── */}
         <section ref={feedRef}>
           <div className="flex items-start justify-between mb-3 flex-wrap gap-3">
             <div>
@@ -471,7 +554,7 @@ export default function DashboardPage() {
               </h2>
               {!state.loadingMentions && (
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {state.mentionsCount.toLocaleString()} resultados
+                  {state.mentionsCount.toLocaleString()} resultado{state.mentionsCount !== 1 ? "s" : ""}
                   {state.selectedSentiment !== "all" && ` · ${state.selectedSentiment}`}
                   {state.searchQuery && ` · "${state.searchQuery}"`}
                 </p>
@@ -487,6 +570,20 @@ export default function DashboardPage() {
               />
             </div>
           </div>
+
+          {/* Aviso búsqueda en vivo */}
+          {state.searchingLive && (
+            <div className="mb-4 p-3 rounded-xl border border-blue-200 bg-blue-50 flex items-center gap-2 text-sm text-blue-700">
+              <Zap className="h-4 w-4 animate-pulse flex-shrink-0" />
+              Buscando en Reddit y Google News en tiempo real…
+            </div>
+          )}
+          {state.liveSearchMsg && !state.searchingLive && (
+            <div className="mb-4 p-3 rounded-xl border border-green-200 bg-green-50 flex items-center gap-2 text-sm text-green-700">
+              <Zap className="h-4 w-4 flex-shrink-0" />
+              {state.liveSearchMsg}
+            </div>
+          )}
 
           {/* Aviso CAPEX financiero */}
           {state.capexType === "financial" && (
@@ -504,25 +601,46 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Grid */}
+          {/* Error mentions */}
+          {state.errorMentions && !state.loadingMentions && (
+            <div className="mb-4 p-4 rounded-xl border border-red-200 bg-red-50 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-red-700">Error cargando menciones</p>
+                <p className="text-xs text-red-600 mt-0.5">{state.errorMentions}</p>
+                <p className="text-xs text-red-500 mt-1">
+                  Verifica que el SQL de migración fue ejecutado en Supabase → SQL Editor.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Grid de menciones */}
           {state.loadingMentions ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => <MentionCardSkeleton key={i} />)}
             </div>
-          ) : state.mentions.length === 0 ? (
+          ) : state.mentions.length === 0 && !state.errorMentions ? (
             <div className="text-center py-16 border-2 border-dashed rounded-xl bg-card">
               <p className="text-sm font-medium text-foreground">Sin menciones para los filtros seleccionados</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Prueba cambiando el período, la entidad o los filtros de sentimiento.
+                {state.dbConnected === false
+                  ? "La base de datos no está conectada. Revisa tus credenciales en .env.local"
+                  : "Prueba cambiando el período, la entidad o los filtros de sentimiento."}
               </p>
+              {state.dbConnected !== false && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Si es la primera vez, ejecuta el SQL de migración en Supabase para insertar datos demo.
+                </p>
+              )}
             </div>
-          ) : (
+          ) : !state.errorMentions ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {state.mentions.map((mention) => (
                 <MentionCard key={mention.id} mention={mention} />
               ))}
             </div>
-          )}
+          ) : null}
 
           {/* Paginación */}
           {totalPages > 1 && (
@@ -561,12 +679,22 @@ export default function DashboardPage() {
               <span>v0.1.0</span>
             </div>
             <div className="flex items-center gap-4">
+              {/* Indicador de conexión real */}
               <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-green-500 inline-block" />
-                Supabase conectado
+                {state.dbConnected === null && (
+                  <span className="h-2 w-2 rounded-full bg-yellow-400 inline-block animate-pulse" />
+                )}
+                {state.dbConnected === true && (
+                  <span className="h-2 w-2 rounded-full bg-green-500 inline-block" />
+                )}
+                {state.dbConnected === false && (
+                  <span className="h-2 w-2 rounded-full bg-red-500 inline-block" />
+                )}
+                {state.dbConnected === null ? "Conectando…" :
+                 state.dbConnected ? "Supabase conectado" : "Supabase desconectado"}
               </span>
-              <span>Análisis: Azure AI Language · ES / EN</span>
-              <span>Stack: Next.js 15 · Tailwind · Recharts</span>
+              <span>Búsqueda en vivo: Reddit · Google News</span>
+              <span className="hidden sm:inline">Stack: Next.js 15 · Tailwind · Recharts</span>
             </div>
           </div>
         </footer>
