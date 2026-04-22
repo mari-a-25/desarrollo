@@ -52,7 +52,7 @@ export function MentionCard({ mention, className, compact = false }: MentionCard
   return (
     <div
       className={cn(
-        "bg-card border rounded-xl shadow-sm transition-all duration-200 hover:shadow-md",
+        "bg-card border rounded-xl shadow-sm transition-all duration-200 hover:shadow-md max-w-lg",
         "animate-fade-in flex flex-col",
         className
       )}

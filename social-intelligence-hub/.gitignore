@@ -9,6 +9,8 @@ dist/
 build/
 .venv/
 venv/
+venv_new/
+scraper/venv_new/
 env/
 scraper/.env
 scraper/scraper.log

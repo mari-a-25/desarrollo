@@ -114,11 +114,11 @@ export default function DashboardPage() {
   }, []);
 
   // ── Carga de stats + resúmenes ──────────────────────────────
-  const loadStats = useCallback(async (dateFrom?: string, dateTo?: string) => {
+  const loadStats = useCallback(async (dateFrom?: string, dateTo?: string, entity?: string, query?: string) => {
     try {
       updateState({ loadingStats: true, errorStats: null });
       const [stats, summaries] = await Promise.all([
-        fetchTotalStats(dateFrom, dateTo),
+        fetchTotalStats(dateFrom, dateTo, entity, query),
         fetchSentimentSummary(),
       ]);
       updateState({ stats, summaries, loadingStats: false });
@@ -130,13 +130,14 @@ export default function DashboardPage() {
   }, [updateState]);
 
   // ── Carga de tendencias ─────────────────────────────────────
-  const loadCharts = useCallback(async (entitySlug?: string, dateFrom?: string, dateTo?: string) => {
+  const loadCharts = useCallback(async (entitySlug?: string, dateFrom?: string, dateTo?: string, query?: string) => {
     try {
       updateState({ loadingCharts: true });
       const trends = await fetchDailyTrend(
         entitySlug === "all" ? undefined : entitySlug,
         dateFrom,
         dateTo,
+        query
       );
       updateState({ trends, loadingCharts: false });
     } catch (err: any) {
@@ -178,31 +179,19 @@ export default function DashboardPage() {
     sentiment?: string;
     sourceSlug?: string;
     searchQuery?: string;
-    capexType?: CapexInterpretation;
     dateFrom?: string;
     dateTo?: string;
     page?: number;
   }) => {
     try {
       updateState({ loadingMentions: true, errorMentions: null });
-      const { entitySlug, sentiment, sourceSlug, searchQuery, capexType, dateFrom, dateTo, page = 0 } = params;
-
-      let effectiveEntity = entitySlug;
-      let effectiveQuery  = searchQuery;
-
-      if (capexType === "institution" && searchQuery?.toLowerCase().includes("capex")) {
-        effectiveEntity = "capex-institucion";
-        effectiveQuery  = undefined;
-      } else if (capexType === "financial") {
-        updateState({ mentions: [], mentionsCount: 0, loadingMentions: false });
-        return;
-      }
+      const { entitySlug, sentiment, sourceSlug, searchQuery, dateFrom, dateTo, page = 0 } = params;
 
       const { data, count } = await fetchMentions({
-        entitySlug:  effectiveEntity === "all" ? undefined : effectiveEntity,
+        entitySlug:  entitySlug === "all" ? undefined : entitySlug,
         sentiment:   sentiment === "all" ? undefined : (sentiment as SentimentLabel),
         sourceSlug:  sourceSlug === "all" ? undefined : sourceSlug,
-        searchQuery: effectiveQuery,
+        searchQuery,
         dateFrom,
         dateTo,
         limit:  MENTIONS_PER_PAGE,
@@ -222,11 +211,27 @@ export default function DashboardPage() {
     }
   }, [updateState]);
 
+  // Helpers to resolve effective entity
+  const resolveEffectiveFilters = useCallback(() => {
+    let effectiveEntity = state.selectedEntity;
+    let effectiveQuery  = state.searchQuery;
+
+    if (state.capexType === "institution" && state.searchQuery?.toLowerCase().includes("capex")) {
+      effectiveEntity = "capex-institucion";
+      effectiveQuery  = undefined;
+    } else if (state.capexType === "financial") {
+      updateState({ mentions: [], mentionsCount: 0, loadingMentions: false });
+      return { skip: true, effectiveEntity, effectiveQuery };
+    }
+
+    return { skip: false, effectiveEntity, effectiveQuery };
+  }, [state.selectedEntity, state.searchQuery, state.capexType, updateState]);
+
   // ── Carga inicial ───────────────────────────────────────────
   useEffect(() => {
     const { from, to } = resolveDateRange(INITIAL_STATE.dateRange);
-    loadStats(from, to);
-    loadCharts(undefined, from, to);
+    loadStats(from, to, undefined, undefined);
+    loadCharts(undefined, from, to, undefined);
     loadMentions({ dateFrom: from, dateTo: to, page: 0 });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -234,16 +239,19 @@ export default function DashboardPage() {
   // ── Reload cuando cambian filtros ───────────────────────────
   useEffect(() => {
     const { from, to } = resolvedDates;
-    loadMentions({
-      entitySlug:  state.selectedEntity,
-      sentiment:   state.selectedSentiment,
-      sourceSlug:  state.selectedSource,
-      searchQuery: state.searchQuery,
-      capexType:   state.capexType,
-      dateFrom: from,
-      dateTo:   to,
-      page:     state.page,
-    });
+    const { skip, effectiveEntity, effectiveQuery } = resolveEffectiveFilters();
+    
+    if (!skip) {
+      loadMentions({
+        entitySlug:  effectiveEntity,
+        sentiment:   state.selectedSentiment,
+        sourceSlug:  state.selectedSource,
+        searchQuery: effectiveQuery,
+        dateFrom: from,
+        dateTo:   to,
+        page:     state.page,
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     state.selectedEntity,
@@ -257,10 +265,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const { from, to } = resolvedDates;
-    loadCharts(state.selectedEntity, from, to);
-    loadStats(from, to);
+    const { skip, effectiveEntity, effectiveQuery } = resolveEffectiveFilters();
+    
+    if (!skip) {
+      loadCharts(effectiveEntity, from, to, effectiveQuery);
+      loadStats(from, to, effectiveEntity, effectiveQuery);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.selectedEntity, state.dateRange]);
+  }, [state.selectedEntity, state.dateRange, state.searchQuery, state.capexType]);
 
   // ── Handlers ────────────────────────────────────────────────
   const handleSearch = useCallback((query: string, capexType?: CapexInterpretation) => {
@@ -617,7 +629,7 @@ export default function DashboardPage() {
 
           {/* Grid de menciones */}
           {state.loadingMentions ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4 max-w-7xl mx-auto">
               {Array.from({ length: 6 }).map((_, i) => <MentionCardSkeleton key={i} />)}
             </div>
           ) : state.mentions.length === 0 && !state.errorMentions ? (
@@ -635,7 +647,7 @@ export default function DashboardPage() {
               )}
             </div>
           ) : !state.errorMentions ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4 max-w-7xl mx-auto">
               {state.mentions.map((mention) => (
                 <MentionCard key={mention.id} mention={mention} />
               ))}

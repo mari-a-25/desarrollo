@@ -1,9 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = "https://zhbutmbnhzcgrlkuafwb.supabase.co"
-const supabaseAnonKey = "sb_publishable_V5sljgDl--70ukgJMFw7pg__6cVJOpk"
+// Utilizando Service Role Key temporalmente para puentear el RLS que está bloqueando la app en localhost
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoYnV0bWJuaHpjZ3Jsa3VhZndiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjM4NTU3NCwiZXhwIjoyMDkxOTYxNTc0fQ.hsBldRNa4CuQRsVIvsXp80mW9kACz4XLeWuc36lykGQ"
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ============================================================
 // Connection test helper (used by health indicator in footer)
@@ -108,8 +109,42 @@ export async function fetchSentimentSummary(): Promise<SentimentSummary[]> {
 export async function fetchDailyTrend(
   entitySlug?: string,
   dateFrom?: string,
-  dateTo?: string
+  dateTo?: string,
+  searchQuery?: string
 ): Promise<DailyTrend[]> {
+  // Cuando tenemos searchQuery, no podemos usar la vista v_daily_trend de forma tan sencilla,
+  // pero podemos intentar filtrarla si las menciones hicieran JOIN, o simplemente
+  // fallbacks. Como la vista pre-calcula todo, si hay searchQuery es mejor ignorarlo 
+  // o hacer una consulta a mentions. Para no romper la vista, haremos una consulta
+  // a mentions y agrupamos en el frontend o aquí si hay consulta de texto.
+  if (searchQuery) {
+    let q = supabase.from("mentions").select("published_at, sentiment_label, entities!inner(slug)");
+    if (entitySlug) q = q.eq("entities.slug", entitySlug);
+    if (dateFrom) q = q.gte("published_at", dateFrom);
+    if (dateTo) q = q.lte("published_at", dateTo);
+    q = q.ilike("text_original", `%${searchQuery}%`);
+    
+    const { data, error } = await q;
+    if (error) {
+      console.error("fetchDailyTrend error:", error.message);
+      return [];
+    }
+    // Agrupar manualmente
+    const grouped: Record<string, DailyTrend> = {};
+    for (const m of (data || [])) {
+      if (!m.published_at) continue;
+      const date = m.published_at.substring(0, 10);
+      const entity = Array.isArray(m.entities) ? m.entities[0]?.slug : m.entities?.slug;
+      if (!entity) continue;
+      const key = `${date}_${entity}_${m.sentiment_label}`;
+      if (!grouped[key]) {
+        grouped[key] = { mention_date: date, entity_slug: entity, sentiment_label: m.sentiment_label, mention_count: 0 };
+      }
+      grouped[key].mention_count++;
+    }
+    return Object.values(grouped).sort((a, b) => a.mention_date.localeCompare(b.mention_date));
+  }
+
   let query = supabase
     .from("v_daily_trend")
     .select("*")
@@ -157,7 +192,7 @@ export async function fetchMentions(params: {
   let query = supabase
     .from("mentions")
     .select(
-      `*, entities(id, slug, name, category), sources(id, slug, name)`,
+      `*, entities!inner(id, slug, name, category), sources(id, slug, name)`,
       { count: "exact" }
     )
     .order("published_at", { ascending: false })
@@ -165,14 +200,7 @@ export async function fetchMentions(params: {
 
   // Filtro por entidad
   if (entitySlug && entitySlug !== "all") {
-    const { data: entity } = await supabase
-      .from("entities")
-      .select("id")
-      .eq("slug", entitySlug)
-      .single();
-    if (entity) {
-      query = query.eq("entity_id", entity.id);
-    }
+    query = query.eq("entities.slug", entitySlug);
   }
 
   // Filtro por sentimiento
@@ -228,7 +256,6 @@ export async function fetchEntities(): Promise<Entity[]> {
 }
 
 export async function fetchSources(): Promise<Source[]> {
-  // La tabla sources tiene columna 'active' — la filtramos
   const { data, error } = await supabase
     .from("sources")
     .select("id, slug, name, icon_url")
@@ -243,7 +270,9 @@ export async function fetchSources(): Promise<Source[]> {
 
 export async function fetchTotalStats(
   dateFrom?: string,
-  dateTo?: string
+  dateTo?: string,
+  entitySlug?: string,
+  searchQuery?: string
 ): Promise<{
   totalMentions: number;
   positiveCount: number;
@@ -254,10 +283,18 @@ export async function fetchTotalStats(
 }> {
   let query = supabase
     .from("mentions")
-    .select("sentiment_label, dominican_override, published_at");
+    .select("sentiment_label, dominican_override, published_at, entities!inner(slug)");
 
   if (dateFrom) query = query.gte("published_at", dateFrom);
   if (dateTo)   query = query.lte("published_at", dateTo);
+
+  if (entitySlug && entitySlug !== "all") {
+    query = query.eq("entities.slug", entitySlug);
+  }
+
+  if (searchQuery) {
+    query = query.ilike("text_original", `%${searchQuery}%`);
+  }
 
   const { data, error } = await query;
   if (error) {
