@@ -318,3 +318,40 @@ export async function fetchTotalStats(
     localTermOverrides: overrides,
   };
 }
+
+export async function fetchEntityBySlug(slug: string): Promise<Entity | null> {
+  const { data, error } = await supabase
+    .from("entities")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) {
+    console.error("fetchEntityBySlug error:", error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function fetchSourceStats(entitySlug: string): Promise<Array<{ source_name: string, count: number }>> {
+  const { data, error } = await supabase
+    .from("mentions")
+    .select("sources!inner(name), entities!inner(slug)")
+    .eq("entities.slug", entitySlug);
+
+  if (error) {
+    console.error("fetchSourceStats error:", error.message);
+    return [];
+  }
+
+  const counts: Record<string, number> = {};
+  (data || []).forEach((m: any) => {
+    const name = m.sources?.name || "Desconocido";
+    counts[name] = (counts[name] || 0) + 1;
+  });
+
+  return Object.entries(counts)
+    .map(([source_name, count]) => ({ source_name, count }))
+    .sort((a, b) => b.count - a.count);
+}
+

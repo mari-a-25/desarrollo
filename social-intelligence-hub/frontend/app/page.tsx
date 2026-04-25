@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import {
   BarChart2, Bell, RefreshCw, Globe,
   ThumbsUp, ThumbsDown, Minus, AlertTriangle, Filter,
-  Wifi, WifiOff, Zap,
+  Wifi, WifiOff, Zap, ArrowUpRight, BarChart3
 } from "lucide-react";
 import { KpiCard, NetSentimentCard } from "@/components/KpiCard";
 import { TrendChart, SentimentDonut, EntitiesComparisonChart } from "@/components/SentimentChart";
@@ -216,10 +217,7 @@ export default function DashboardPage() {
     let effectiveEntity = state.selectedEntity;
     let effectiveQuery  = state.searchQuery;
 
-    if (state.capexType === "institution" && state.searchQuery?.toLowerCase().includes("capex")) {
-      effectiveEntity = "capex-institucion";
-      effectiveQuery  = undefined;
-    } else if (state.capexType === "financial") {
+    if (state.capexType === "financial") {
       updateState({ mentions: [], mentionsCount: 0, loadingMentions: false });
       return { skip: true, effectiveEntity, effectiveQuery };
     }
@@ -276,12 +274,27 @@ export default function DashboardPage() {
 
   // ── Handlers ────────────────────────────────────────────────
   const handleSearch = useCallback((query: string, capexType?: CapexInterpretation) => {
-    updateState({ searchQuery: query, capexType: capexType ?? null, page: 0, liveSearchMsg: null });
-    // Disparar búsqueda en vivo para enriquecer la DB con resultados en tiempo real
-    if (query && query.trim().length >= 2) {
-      triggerLiveSearch(query);
+    let newEntity = state.selectedEntity;
+    let newQuery = query;
+
+    if (capexType === "institution") {
+      newEntity = "capex-institucion";
+      newQuery = ""; // Filtrar por entidad, no por texto
     }
-  }, [updateState, triggerLiveSearch]);
+
+    updateState({ 
+      searchQuery: newQuery, 
+      capexType: capexType ?? null, 
+      page: 0, 
+      liveSearchMsg: null,
+      selectedEntity: newEntity 
+    });
+
+    // Disparar búsqueda en vivo para enriquecer la DB con resultados en tiempo real
+    if (newQuery && newQuery.trim().length >= 2) {
+      triggerLiveSearch(newQuery);
+    }
+  }, [updateState, triggerLiveSearch, state.selectedEntity]);
 
   const handleEntityChange = useCallback((entity: string) => {
     updateState({ selectedEntity: entity, page: 0 });
@@ -510,23 +523,36 @@ export default function DashboardPage() {
 
         {/* ────── GRÁFICOS ────── */}
         <section>
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400">
               Análisis de Tendencias
             </h2>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Entidad:</span>
-              <select
-                value={state.selectedEntity}
-                onChange={(e) => handleEntityChange(e.target.value)}
-                className="text-xs border rounded-lg px-2.5 py-1.5 bg-white text-foreground
-                           focus:outline-none focus:ring-1 focus:ring-primary/30"
-              >
-                {entityFilterOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Contexto:</span>
+                <select
+                  value={state.selectedEntity}
+                  onChange={(e) => handleEntityChange(e.target.value)}
+                  className="text-xs font-bold border-slate-200 border rounded-lg px-3 py-1.5 bg-white text-czfs-navy
+                             focus:outline-none focus:ring-2 focus:ring-czfs-blue/20 transition-all cursor-pointer shadow-sm"
+                >
+                  {entityFilterOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {state.selectedEntity !== "all" && (
+                <Link 
+                  href={`/entidad/${state.selectedEntity}`}
+                  className="text-[10px] font-bold text-czfs-blue hover:text-czfs-blue/80 flex items-center gap-1.5 bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100/50 transition-all hover:shadow-sm"
+                >
+                  <BarChart3 className="h-3 w-3" />
+                  VER PERFIL COMPLETO
+                  <ArrowUpRight className="h-3 w-3" />
+                </Link>
+              )}
             </div>
           </div>
 

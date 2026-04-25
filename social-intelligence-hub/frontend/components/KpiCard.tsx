@@ -52,15 +52,14 @@ export function KpiCard({
   return (
     <div
       className={cn(
-        "bg-card rounded-xl p-5 border shadow-sm transition-all duration-150",
-        onClick && "cursor-pointer hover:shadow-md hover:-translate-y-0.5 select-none",
-        active && "ring-2 shadow-md -translate-y-0.5",
+        "bg-white rounded-xl p-5 border border-slate-200 shadow-sm transition-all duration-200",
+        onClick && "cursor-pointer hover:shadow-md hover:border-czfs-blue hover:-translate-y-0.5 select-none",
+        active && "ring-2 ring-czfs-blue shadow-md -translate-y-0.5 border-czfs-blue",
         className
       )}
       style={{
-        borderLeftColor: accentColor,
-        borderLeftWidth: 4,
-        ...(active ? { ringColor: accentColor } : {}),
+        borderTopWidth: 4,
+        borderTopColor: accentColor,
       }}
       onClick={onClick}
       title={onClick ? "Haz clic para filtrar el feed" : undefined}
@@ -148,13 +147,13 @@ export function NetSentimentCard({
   return (
     <div
       className={cn(
-        "bg-card rounded-xl p-5 border shadow-sm col-span-1 transition-all duration-150",
-        onClick && "cursor-pointer hover:shadow-md hover:-translate-y-0.5 select-none",
-        active && "ring-2 shadow-md -translate-y-0.5"
+        "bg-white rounded-xl p-5 border border-slate-200 shadow-sm col-span-1 transition-all duration-200",
+        onClick && "cursor-pointer hover:shadow-md hover:border-czfs-blue hover:-translate-y-0.5 select-none",
+        active && "ring-2 ring-czfs-blue shadow-md -translate-y-0.5 border-czfs-blue"
       )}
       style={{
-        borderLeftColor: color,
-        borderLeftWidth: 4,
+        borderTopWidth: 4,
+        borderTopColor: color,
       }}
       onClick={onClick}
       title={onClick ? "Haz clic para ver detalle" : undefined}

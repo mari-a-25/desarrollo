@@ -22,6 +22,9 @@ TARGET_SUBREDDITS = [
     "republicadominicana",
     "Santiago",
     "trabajos_rd",
+    "DominicanRepublic",
+    "latinoamerica",
+    "asklatinamerica",
 ]
 
 # Términos de búsqueda por entidad

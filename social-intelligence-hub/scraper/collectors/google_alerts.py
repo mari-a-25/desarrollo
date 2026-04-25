@@ -43,6 +43,9 @@ PUBLIC_RSS_FEEDS = {
         "https://elnacional.com.do/feed/",
         "https://listindiario.com/feed",
         "https://www.diariolibre.com/feed",
+        "https://hoy.com.do/feed/",
+        "https://elcaribe.com.do/feed/",
+        "https://www.elmasacre.com/feed/",
     ]
 }
 

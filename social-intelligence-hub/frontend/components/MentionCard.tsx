@@ -52,7 +52,7 @@ export function MentionCard({ mention, className, compact = false }: MentionCard
   return (
     <div
       className={cn(
-        "bg-card border rounded-xl shadow-sm transition-all duration-200 hover:shadow-md max-w-lg",
+        "bg-white border border-slate-200 rounded-xl shadow-sm transition-all duration-200 hover:shadow-md max-w-lg",
         "animate-fade-in flex flex-col",
         className
       )}
@@ -141,12 +141,11 @@ export function MentionCard({ mention, className, compact = false }: MentionCard
         </div>
       )}
 
-      {/* ── Texto íntegro ── */}
-      <div className={cn("px-4 pb-3 flex-1", compact && "px-3 pb-3")}>
+      <div className={cn("px-5 pb-4 flex-1", compact && "px-4 pb-3")}>
         <p
           className={cn(
-            "text-sm text-foreground leading-relaxed line-clamp-6",
-            compact && "line-clamp-4"
+            "text-[15px] text-slate-700 leading-relaxed",
+            compact && "line-clamp-5 text-sm"
           )}
         >
           {mention.text_original}
