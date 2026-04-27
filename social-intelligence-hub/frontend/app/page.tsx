@@ -5,8 +5,10 @@ import Link from "next/link";
 import {
   BarChart2, Bell, RefreshCw, Globe,
   ThumbsUp, ThumbsDown, Minus, AlertTriangle, Filter,
-  Wifi, WifiOff, Zap, ArrowUpRight, BarChart3
+  Wifi, WifiOff, Zap, ArrowUpRight, BarChart3, FileText, Download
 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { KpiCard, NetSentimentCard } from "@/components/KpiCard";
 import { TrendChart, SentimentDonut, EntitiesComparisonChart } from "@/components/SentimentChart";
 import { MentionCard, MentionCardSkeleton } from "@/components/MentionCard";
@@ -296,6 +298,66 @@ export default function DashboardPage() {
     }
   }, [updateState, triggerLiveSearch, state.selectedEntity]);
 
+  const handleGenerateReport = useCallback(() => {
+    const doc = new jsPDF();
+    const now = new Date().toLocaleString();
+    
+    doc.setFontSize(20);
+    doc.setTextColor(30, 58, 138); 
+    doc.text("Social Intelligence Hub - Reporte Ejecutivo", 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generado el: ${now}`, 14, 30);
+    doc.text(`Entidad: ${state.selectedEntity === 'all' ? 'Todas las entidades' : state.selectedEntity}`, 14, 35);
+    
+    if (state.stats) {
+      doc.setFontSize(14);
+      doc.setTextColor(0);
+      doc.text("Resumen de Metricas", 14, 50);
+      
+      autoTable(doc, {
+        startY: 55,
+        head: [['KPI', 'Valor']],
+        body: [
+          ['Menciones Totales', state.stats.totalMentions.toString()],
+          ['Sentimiento Neto', `${state.stats.netSentiment}%`],
+          ['Menciones Positivas', state.stats.positiveCount.toString()],
+          ['Menciones Negativas', state.stats.negativeCount.toString()],
+          ['Menciones Neutras', state.stats.neutralCount.toString()],
+          ['Correcciones Locales', state.stats.localTermOverrides.toString()],
+        ],
+        theme: 'striped',
+        headStyles: { fillColor: [30, 58, 138] }
+      });
+    }
+
+    const topMentions = state.mentions.slice(0, 5);
+    if (topMentions.length > 0) {
+      doc.setFontSize(14);
+      doc.text("Menciones Recientes mas Relevantes", 14, (doc as any).lastAutoTable.finalY + 15);
+      
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 20,
+        head: [['Fecha', 'Fuente', 'Autor', 'Sentimiento', 'Texto']],
+        body: topMentions.map(m => [
+          m.published_at ? m.published_at.substring(0, 10) : '-',
+          m.sources?.name || 'Web',
+          m.author_name || 'Anonimo',
+          m.sentiment_label,
+          m.text_original.substring(0, 80) + '...'
+        ]),
+        columnStyles: {
+          4: { cellWidth: 80 }
+        },
+        theme: 'grid',
+        headStyles: { fillColor: [15, 23, 42] }
+      });
+    }
+    
+    doc.save(`reporte-social-intelligence-${state.selectedEntity}-${new Date().getTime()}.pdf`);
+  }, [state.stats, state.selectedEntity, state.mentions]);
+
   const handleEntityChange = useCallback((entity: string) => {
     updateState({ selectedEntity: entity, page: 0 });
   }, [updateState]);
@@ -403,6 +465,14 @@ export default function DashboardPage() {
               </span>
             )}
             <button
+              onClick={handleGenerateReport}
+              className="p-2 rounded-lg hover:bg-muted transition-colors"
+              title="Descargar reporte PDF"
+              disabled={!state.stats}
+            >
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <button
               onClick={handleRefresh}
               className="p-2 rounded-lg hover:bg-muted transition-colors"
               title="Actualizar datos"
@@ -413,7 +483,9 @@ export default function DashboardPage() {
             </button>
             <button className="p-2 rounded-lg hover:bg-muted transition-colors relative">
               <Bell className="h-4 w-4 text-muted-foreground" />
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-red-500 rounded-full" />
+              {negativePct > 30 && (
+                <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-red-500 rounded-full animate-pulse" />
+              )}
             </button>
           </div>
         </div>
