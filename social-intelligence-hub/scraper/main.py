@@ -47,10 +47,10 @@ def get_supabase_client():
     """Inicializa el cliente de Supabase."""
     try:
         from supabase import create_client, Client
-        url = os.getenv("https://zhbutmbnhzcgrlkuafwb.supabase.co")
-        key = os.getenv("sb_publishable_V5sljgDl--70ukgJMFw7pg__6cVJOpkY")
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         if not url or not key:
-            logger.error("SUPABASE_URL y SUPABASE_ANON_KEY requeridos en .env")
+            logger.error("SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY requeridos en .env")
             return None
         return create_client(url, key)
     except ImportError:

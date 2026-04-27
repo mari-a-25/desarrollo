@@ -50,28 +50,31 @@ PUBLIC_RSS_FEEDS = {
 }
 
 # Términos de búsqueda por entidad (para filtrar resultados de RSS públicos)
-# "phrases" require an exact match; "keywords" are individual tokens
-# that count toward the 2-keyword minimum.
 SEARCH_TERMS = {
     "czfs": {
-        "phrases": ["zona franca santiago", "corporacion zona franca", "corporación zona franca"],
-        "keywords": ["czfs", "zona franca", "pivem", "corporacion", "corporación", "santiago"],
+        "phrases": ["zona franca santiago", "corporacion zona franca", "corporación zona franca", "parque industrial santiago"],
+        "keywords": ["czfs", "zona franca", "pivem", "corporacion", "corporación"],
+        "core": ["czfs", "pivem", "zona franca"] # Al menos una de estas debe estar presente si no hay frase
     },
     "capex-institucion": {
         "phrases": ["capex santiago", "capex capacitacion", "capex capacitación", "capex formacion", "capex formación", "centro capacitacion santiago"],
-        "keywords": ["capex", "capacitacion", "capacitación", "formacion", "formación", "santiago", "egresado", "taller", "curso"],
+        "keywords": ["capex", "capacitacion", "capacitación", "formacion", "formación", "egresado", "taller", "curso"],
+        "core": ["capex"]
     },
     "pivem": {
         "phrases": ["parque industrial villa europa", "villa europa mediterraneo", "villa europa mediterráneo"],
         "keywords": ["pivem", "parque industrial", "villa europa", "mediterraneo", "mediterráneo"],
+        "core": ["pivem", "villa europa"]
     },
     "plazona": {
         "phrases": ["plazona santiago", "centro comercial plazona"],
-        "keywords": ["plazona", "centro comercial", "santiago"],
+        "keywords": ["plazona", "centro comercial"],
+        "core": ["plazona"]
     },
     "medica-czfs": {
-        "phrases": ["medica czfs", "centro de salud czfs"],
-        "keywords": ["medica", "czfs", "salud", "zona franca"],
+        "phrases": ["medica czfs", "centro de salud czfs", "médica czfs"],
+        "keywords": ["medica", "czfs", "salud"],
+        "core": ["medica czfs", "médica czfs"]
     },
 }
 
@@ -124,8 +127,10 @@ def detect_language(text: str) -> str:
 
 def _is_relevant(text: str, entity_slug: str) -> bool:
     """
-    Stricter relevance check: requires at least ONE exact phrase match
-    OR at least TWO individual keyword matches.
+    Stricter relevance check:
+    1. At least ONE exact phrase match.
+    OR
+    2. At least ONE 'core' keyword AND one other keyword.
     """
     terms = SEARCH_TERMS.get(entity_slug)
     if not terms:
@@ -133,12 +138,17 @@ def _is_relevant(text: str, entity_slug: str) -> bool:
 
     combined = text.lower()
 
-    # Check exact phrases first — one match is enough
+    # 1. Check exact phrases first — one match is enough
     for phrase in terms.get("phrases", []):
         if phrase in combined:
             return True
 
-    # Otherwise require >= 2 keyword hits
+    # 2. Check core keywords
+    has_core = any(core in combined for core in terms.get("core", []))
+    if not has_core:
+        return False
+
+    # 3. Require at least one other keyword or phrase component
     keyword_hits = sum(1 for kw in terms.get("keywords", []) if kw in combined)
     return keyword_hits >= 2
 
@@ -350,9 +360,11 @@ class GoogleAlertsCollector:
             # Author
             author = entry.get("author", "Fuente de noticias")
 
-            # Hash para deduplicación
+            # Hash para deduplicación (basado en el contenido para evitar duplicados de diferentes fuentes)
+            # Usamos los primeros 200 caracteres normalizados para el hash
+            normalized_text = re.sub(r'\s+', '', text.lower())[:200]
             content_hash = hashlib.sha256(
-                f"{source_slug}:{entity_slug}:{source_url}:{text[:80]}".encode()
+                f"{entity_slug}:{normalized_text}".encode()
             ).hexdigest()
 
             # Sentimiento
@@ -387,8 +399,12 @@ class GoogleAlertsCollector:
             return None
 
     def _clean_html(self, html_text: str) -> str:
-        """Elimina etiquetas HTML del texto."""
-        clean = re.sub(r'<[^>]+>', ' ', html_text)
+        """Elimina etiquetas HTML y URLs de imagenes del texto."""
+        # Remover URLs de imágenes (jpg, png, etc)
+        clean = re.sub(r'https?://[^\s]+\.(jpg|jpeg|png|gif|webp)[^\s]*', '', html_text, flags=re.IGNORECASE)
+        # Remover etiquetas HTML
+        clean = re.sub(r'<[^>]+>', ' ', clean)
+        # Normalizar espacios
         clean = re.sub(r'\s+', ' ', clean)
         return clean.strip()
 

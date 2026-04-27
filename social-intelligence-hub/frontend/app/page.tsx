@@ -43,50 +43,50 @@ interface DashboardState {
     netSentiment: number;
     localTermOverrides: number;
   } | null;
-  summaries:         SentimentSummary[];
-  trends:            DailyTrend[];
-  mentions:          Mention[];
-  mentionsCount:     number;
-  selectedEntity:    string;
+  summaries: SentimentSummary[];
+  trends: DailyTrend[];
+  mentions: Mention[];
+  mentionsCount: number;
+  selectedEntity: string;
   selectedSentiment: string;
-  selectedSource:    string;
-  searchQuery:       string;
-  capexType:         CapexInterpretation;
-  dateRange:         DateRange;
-  page:              number;
-  loadingStats:      boolean;
-  loadingCharts:     boolean;
-  loadingMentions:   boolean;
-  searchingLive:     boolean;
-  lastUpdated:       Date | null;
-  dbConnected:       boolean | null;   // null = checking, true/false = result
-  errorStats:        string | null;
-  errorMentions:     string | null;
-  liveSearchMsg:     string | null;
+  selectedSource: string;
+  searchQuery: string;
+  capexType: CapexInterpretation;
+  dateRange: DateRange;
+  page: number;
+  loadingStats: boolean;
+  loadingCharts: boolean;
+  loadingMentions: boolean;
+  searchingLive: boolean;
+  lastUpdated: Date | null;
+  dbConnected: boolean | null;   // null = checking, true/false = result
+  errorStats: string | null;
+  errorMentions: string | null;
+  liveSearchMsg: string | null;
 }
 
 const INITIAL_STATE: DashboardState = {
-  stats:             null,
-  summaries:         [],
-  trends:            [],
-  mentions:          [],
-  mentionsCount:     0,
-  selectedEntity:    "all",
+  stats: null,
+  summaries: [],
+  trends: [],
+  mentions: [],
+  mentionsCount: 0,
+  selectedEntity: "all",
   selectedSentiment: "all",
-  selectedSource:    "all",
-  searchQuery:       "",
-  capexType:         null,
-  dateRange:         { preset: "all" },
-  page:              0,
-  loadingStats:      true,
-  loadingCharts:     true,
-  loadingMentions:   true,
-  searchingLive:     false,
-  lastUpdated:       null,
-  dbConnected:       null,
-  errorStats:        null,
-  errorMentions:     null,
-  liveSearchMsg:     null,
+  selectedSource: "all",
+  searchQuery: "",
+  capexType: null,
+  dateRange: { preset: "all" },
+  page: 0,
+  loadingStats: true,
+  loadingCharts: true,
+  loadingMentions: true,
+  searchingLive: false,
+  lastUpdated: null,
+  dbConnected: null,
+  errorStats: null,
+  errorMentions: null,
+  liveSearchMsg: null,
 };
 
 const MENTIONS_PER_PAGE = 12;
@@ -96,7 +96,7 @@ const MENTIONS_PER_PAGE = 12;
 // ─────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [state, setState] = useState<DashboardState>(INITIAL_STATE);
-  const feedRef           = useRef<HTMLDivElement>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
 
   const updateState = useCallback((updates: Partial<DashboardState>) => {
     setState((prev) => ({ ...prev, ...updates }));
@@ -113,7 +113,7 @@ export default function DashboardPage() {
         console.warn("Supabase connection failed:", error);
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Carga de stats + resúmenes ──────────────────────────────
@@ -191,21 +191,21 @@ export default function DashboardPage() {
       const { entitySlug, sentiment, sourceSlug, searchQuery, dateFrom, dateTo, page = 0 } = params;
 
       const { data, count } = await fetchMentions({
-        entitySlug:  entitySlug === "all" ? undefined : entitySlug,
-        sentiment:   sentiment === "all" ? undefined : (sentiment as SentimentLabel),
-        sourceSlug:  sourceSlug === "all" ? undefined : sourceSlug,
+        entitySlug: entitySlug === "all" ? undefined : entitySlug,
+        sentiment: sentiment === "all" ? undefined : (sentiment as SentimentLabel),
+        sourceSlug: sourceSlug === "all" ? undefined : sourceSlug,
         searchQuery,
         dateFrom,
         dateTo,
-        limit:  MENTIONS_PER_PAGE,
+        limit: MENTIONS_PER_PAGE,
         offset: page * MENTIONS_PER_PAGE,
       });
 
       updateState({
-        mentions:        data,
-        mentionsCount:   count,
+        mentions: data,
+        mentionsCount: count,
         loadingMentions: false,
-        lastUpdated:     new Date(),
+        lastUpdated: new Date(),
       });
     } catch (err: any) {
       const msg = err?.message ?? "Error desconocido al cargar menciones";
@@ -217,7 +217,7 @@ export default function DashboardPage() {
   // Helpers to resolve effective entity
   const resolveEffectiveFilters = useCallback(() => {
     let effectiveEntity = state.selectedEntity;
-    let effectiveQuery  = state.searchQuery;
+    let effectiveQuery = state.searchQuery;
 
     if (state.capexType === "financial") {
       updateState({ mentions: [], mentionsCount: 0, loadingMentions: false });
@@ -233,26 +233,26 @@ export default function DashboardPage() {
     loadStats(from, to, undefined, undefined);
     loadCharts(undefined, from, to, undefined);
     loadMentions({ dateFrom: from, dateTo: to, page: 0 });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Reload cuando cambian filtros ───────────────────────────
   useEffect(() => {
     const { from, to } = resolvedDates;
     const { skip, effectiveEntity, effectiveQuery } = resolveEffectiveFilters();
-    
+
     if (!skip) {
       loadMentions({
-        entitySlug:  effectiveEntity,
-        sentiment:   state.selectedSentiment,
-        sourceSlug:  state.selectedSource,
+        entitySlug: effectiveEntity,
+        sentiment: state.selectedSentiment,
+        sourceSlug: state.selectedSource,
         searchQuery: effectiveQuery,
         dateFrom: from,
-        dateTo:   to,
-        page:     state.page,
+        dateTo: to,
+        page: state.page,
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     state.selectedEntity,
     state.selectedSentiment,
@@ -266,12 +266,12 @@ export default function DashboardPage() {
   useEffect(() => {
     const { from, to } = resolvedDates;
     const { skip, effectiveEntity, effectiveQuery } = resolveEffectiveFilters();
-    
+
     if (!skip) {
       loadCharts(effectiveEntity, from, to, effectiveQuery);
       loadStats(from, to, effectiveEntity, effectiveQuery);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.selectedEntity, state.dateRange, state.searchQuery, state.capexType]);
 
   // ── Handlers ────────────────────────────────────────────────
@@ -284,12 +284,12 @@ export default function DashboardPage() {
       newQuery = ""; // Filtrar por entidad, no por texto
     }
 
-    updateState({ 
-      searchQuery: newQuery, 
-      capexType: capexType ?? null, 
-      page: 0, 
+    updateState({
+      searchQuery: newQuery,
+      capexType: capexType ?? null,
+      page: 0,
       liveSearchMsg: null,
-      selectedEntity: newEntity 
+      selectedEntity: newEntity
     });
 
     // Disparar búsqueda en vivo para enriquecer la DB con resultados en tiempo real
@@ -301,21 +301,21 @@ export default function DashboardPage() {
   const handleGenerateReport = useCallback(() => {
     const doc = new jsPDF();
     const now = new Date().toLocaleString();
-    
+
     doc.setFontSize(20);
-    doc.setTextColor(30, 58, 138); 
+    doc.setTextColor(30, 58, 138);
     doc.text("Social Intelligence Hub - Reporte Ejecutivo", 14, 22);
-    
+
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Generado el: ${now}`, 14, 30);
     doc.text(`Entidad: ${state.selectedEntity === 'all' ? 'Todas las entidades' : state.selectedEntity}`, 14, 35);
-    
+
     if (state.stats) {
       doc.setFontSize(14);
       doc.setTextColor(0);
       doc.text("Resumen de Metricas", 14, 50);
-      
+
       autoTable(doc, {
         startY: 55,
         head: [['KPI', 'Valor']],
@@ -336,7 +336,7 @@ export default function DashboardPage() {
     if (topMentions.length > 0) {
       doc.setFontSize(14);
       doc.text("Menciones Recientes mas Relevantes", 14, (doc as any).lastAutoTable.finalY + 15);
-      
+
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 20,
         head: [['Fecha', 'Fuente', 'Autor', 'Sentimiento', 'Texto']],
@@ -354,7 +354,7 @@ export default function DashboardPage() {
         headStyles: { fillColor: [15, 23, 42] }
       });
     }
-    
+
     doc.save(`reporte-social-intelligence-${state.selectedEntity}-${new Date().getTime()}.pdf`);
   }, [state.stats, state.selectedEntity, state.mentions]);
 
@@ -383,17 +383,17 @@ export default function DashboardPage() {
     loadStats(from, to);
     loadCharts(state.selectedEntity, from, to);
     loadMentions({
-      entitySlug:  state.selectedEntity,
-      sentiment:   state.selectedSentiment,
-      sourceSlug:  state.selectedSource,
+      entitySlug: state.selectedEntity,
+      sentiment: state.selectedSentiment,
+      sourceSlug: state.selectedSource,
       searchQuery: state.searchQuery,
-      capexType:   state.capexType,
+      capexType: state.capexType,
       dateFrom: from,
-      dateTo:   to,
-      page:     0,
+      dateTo: to,
+      page: 0,
     });
     updateState({ page: 0 });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   // ── Datos derivados ─────────────────────────────────────────
@@ -412,14 +412,14 @@ export default function DashboardPage() {
   ];
 
   const sentimentFilterOptions = [
-    { value: "all",      label: "Todos" },
+    { value: "all", label: "Todos" },
     { value: "positive", label: "Positivos" },
     { value: "negative", label: "Negativos" },
-    { value: "neutral",  label: "Neutros"   },
-    { value: "mixed",    label: "Mixtos"    },
+    { value: "neutral", label: "Neutros" },
+    { value: "mixed", label: "Mixtos" },
   ];
 
-  const totalPages  = Math.ceil(state.mentionsCount / MENTIONS_PER_PAGE);
+  const totalPages = Math.ceil(state.mentionsCount / MENTIONS_PER_PAGE);
   const positivePct = state.stats && state.stats.totalMentions > 0
     ? Math.round((state.stats.positiveCount / state.stats.totalMentions) * 100) : 0;
   const negativePct = state.stats && state.stats.totalMentions > 0
@@ -616,7 +616,7 @@ export default function DashboardPage() {
               </div>
 
               {state.selectedEntity !== "all" && (
-                <Link 
+                <Link
                   href={`/entidad/${state.selectedEntity}`}
                   className="text-[10px] font-bold text-czfs-blue hover:text-czfs-blue/80 flex items-center gap-1.5 bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100/50 transition-all hover:shadow-sm"
                 >
@@ -801,7 +801,7 @@ export default function DashboardPage() {
                   <span className="h-2 w-2 rounded-full bg-red-500 inline-block" />
                 )}
                 {state.dbConnected === null ? "Conectando…" :
-                 state.dbConnected ? "Supabase conectado" : "Supabase desconectado"}
+                  state.dbConnected ? "Supabase conectado" : "Supabase desconectado"}
               </span>
               <span>Búsqueda en vivo: Reddit · Google News</span>
               <span className="hidden sm:inline">Stack: Next.js 15 · Tailwind · Recharts</span>

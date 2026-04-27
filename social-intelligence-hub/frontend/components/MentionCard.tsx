@@ -100,6 +100,13 @@ export function MentionCard({ mention, className, compact = false }: MentionCard
             <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono border">
               {langLabel}
             </span>
+
+            {/* Demo Badge */}
+            {mention.is_demo && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold border border-amber-200 uppercase tracking-tighter shadow-sm">
+                DEMO
+              </span>
+            )}
           </div>
 
           {/* Fecha */}

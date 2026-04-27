@@ -64,6 +64,7 @@ export interface Mention {
   published_at?: string;
   collected_at: string;
   language?: string;
+  is_demo?: boolean;
   entities?: Entity;
   sources?: Source;
 }
